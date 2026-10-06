@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Galaxy OS</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Three.js for Planet Explorer 3D visualizer -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+  <!-- Google Fonts: Inter & Orbitron for sci-fi modern UI -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            galaxy: {
+              dark: '#0a0a16',
+              deep: '#12112a',
+              accent: '#8b5cf6',
+              cyan: '#06b6d4',
+              pink: '#ec4899',
+              glass: 'rgba(23, 20, 48, 0.65)'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            orbitron: ['Orbitron', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: manipulation;
+    }
+
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #05050d;
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Cosmic Animated Starfield Background */
+    .space-bg {
+      background: radial-gradient(ellipse at bottom, #1b143d 0%, #080711 100%);
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      transition: background 0.8s ease;
+    }
+
+    /* Glassmorphism utility */
+    .glass-panel {
+      background: rgba(18, 16, 38, 0.72);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 1px 1px rgba(255, 255, 255, 0.08);
+    }
+
+    .glass-pill {
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    /* App Window Transition Animations */
+    .app-window {
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease;
+      transform: scale(0.6) translateY(60px);
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
+      will-change: transform, opacity;
+    }
+
+    .app-window.active {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+      visibility: visible;
+    }
+
+    .app-window.minimized {
+      transform: scale(0.2) translateY(500px);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Icon tap physics */
+    .app-icon {
+      transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s ease;
+    }
+
+    .app-icon:active {
+      transform: scale(0.86);
+      filter: brightness(1.3);
+    }
+
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.1);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+    }
+
+    /* Canvas styling */
+    #planet-canvas {
+      width: 100% !important;
+      height: 100% !important;
+      outline: none;
+    }
+
+    /* Glowing Accents */
+    .glow-purple {
+      box-shadow: 0 0 20px rgba(139, 92, 246, 0.35);
+    }
+    .glow-cyan {
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.35);
+    }
+  </style>
+</head>
+<body class="text-white select-none overflow-hidden h-screen w-screen">
+
+  <!-- Dynamic Cosmic Background -->
+  <div id="wallpaper" class="space-bg">
+    <!-- Nebula background effects -->
+    <div class="absolute inset-0 bg-gradient-to-tr from-purple-900/20 via-transparent to-cyan-900/20 pointer-events-none"></div>
+    <div class="absolute -top-32 -left-32 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-32 -right-32 w-96 h-96 bg-cyan-600/20 rounded-full blur-3xl pointer-events-none"></div>
+  </div>
+
+  <!-- MAIN SYSTEM SCREEN CONTAINER -->
+  <div class="relative z-10 flex flex-col h-full w-full justify-between p-4 max-w-md mx-auto sm:max-w-none">
+
+    <!-- 1. TOP SYSTEM STATUS BAR -->
+    <header class="flex justify-between items-center px-4 py-2 rounded-full glass-pill text-xs font-medium z-50 tracking-wider">
+      <div class="flex items-center space-x-2">
+        <span id="system-time" class="font-orbitron font-bold text-cyan-300">12:00 PM</span>
+        <span class="text-purple-400 font-semibold">• Galaxy OS</span>
+      </div>
+      <div class="flex items-center space-x-3 text-slate-300">
+        <i class="fa-solid fa-wifi text-cyan-400"></i>
+        <i class="fa-solid fa-satellite text-purple-400"></i>
+        <div class="flex items-center space-x-1">
+          <span>98%</span>
+          <i class="fa-solid fa-battery-full text-emerald-400"></i>
+        </div>
+      </div>
+    </header>
+
+    <!-- 2. HOMESCREEN APP GRID -->
+    <main class="flex-1 my-6 flex flex-col justify-start relative overflow-hidden">
+      
+      <!-- Cosmic Clock & Weather Widget -->
+      <div class="p-5 rounded-3xl glass-panel mb-6 flex items-center justify-between border-purple-500/20 shadow-lg">
+        <div>
+          <h2 id="widget-date" class="text-xs uppercase tracking-widest text-cyan-400 font-semibold">STARDATE 2026</h2>
+          <p id="widget-time" class="text-3xl font-orbitron font-extrabold text-white tracking-wider my-0.5">12:00:00</p>
+          <p class="text-xs text-purple-300/80 flex items-center gap-1">
+            <i class="fa-solid fa-meteor text-amber-400"></i> Solar Orbit Alpha-9
+          </p>
+        </div>
+        <div class="text-right flex flex-col items-end">
+          <div class="w-10 h-10 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 mb-1">
+            <i class="fa-solid fa-sun text-lg animate-spin" style="animation-duration: 20s;"></i>
+          </div>
+          <span class="text-xs font-bold text-slate-200">24°C Space City</span>
+        </div>
+      </div>
+
+      <!-- App Grid Icons -->
+      <div class="grid grid-cols-4 gap-y-6 gap-x-4 px-2">
+        <!-- App: Space Notes -->
+        <button onclick="openApp('notes-app')" class="app-icon flex flex-col items-center gap-1.5 group outline-none">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-white text-2xl shadow-lg shadow-orange-500/30 group-hover:scale-105">
+            <i class="fa-solid fa-feather-pointed"></i>
+          </div>
+          <span class="text-[11px] font-medium text-slate-200 tracking-wide">Notes</span>
+        </button>
+
+        <!-- App: Galaxy AI Chat -->
+        <button onclick="openApp('chat-app')" class="app-icon flex flex-col items-center gap-1.5 group outline-none">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-white text-2xl shadow-lg shadow-cyan-500/30 group-hover:scale-105">
+            <i class="fa-solid fa-robot"></i>
+          </div>
+          <span class="text-[11px] font-medium text-slate-200 tracking-wide">Galaxy AI</span>
+        </button>
+
+        <!-- App: Planet Explorer -->
+        <button onclick="openApp('planet-app')" class="app-icon flex flex-col items-center gap-1.5 group outline-none">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-700 flex items-center justify-center text-white text-2xl shadow-lg shadow-purple-500/30 group-hover:scale-105">
+            <i class="fa-solid fa-globe"></i>
+          </div>
+          <span class="text-[11px] font-medium text-slate-200 tracking-wide">Planets</span>
+        </button>
+
+        <!-- App: Cosmic Camera -->
+        <button onclick="openApp('camera-app')" class="app-icon flex flex-col items-center gap-1.5 group outline-none">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center text-white text-2xl shadow-lg shadow-pink-500/30 group-hover:scale-105">
+            <i class="fa-solid fa-camera"></i>
+          </div>
+          <span class="text-[11px] font-medium text-slate-200 tracking-wide">Cam</span>
+        </button>
+
+        <!-- App: Settings -->
+        <button onclick="openApp('settings-app')" class="app-icon flex flex-col items-center gap-1.5 group outline-none">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-600 to-slate-800 flex items-center justify-center text-white text-2xl shadow-lg shadow-slate-600/30 group-hover:scale-105 border border-slate-500/30">
+            <i class="fa-solid fa-gear"></i>
+          </div>
+          <span class="text-[11px] font-medium text-slate-200 tracking-wide">Settings</span>
+        </button>
+
+        <!-- App: Star Music Player -->
+        <button onclick="openApp('music-app')" class="app-icon flex flex-col items-center gap-1.5 group outline-none">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-700 flex items-center justify-center text-white text-2xl shadow-lg shadow-emerald-500/30 group-hover:scale-105">
+            <i class="fa-solid fa-music"></i>
+          </div>
+          <span class="text-[11px] font-medium text-slate-200 tracking-wide">Music</span>
+        </button>
+      </div>
+    </main>
+
+    <!-- 3. BOTTOM FLOATING SYSTEM DOCK -->
+    <footer class="glass-panel p-2.5 rounded-3xl flex justify-around items-center max-w-xs mx-auto w-full z-40 border-white/20 shadow-2xl">
+      <button onclick="openApp('chat-app')" class="app-icon w-12 h-12 rounded-2xl bg-cyan-500/30 border border-cyan-400/40 flex items-center justify-center text-cyan-300 text-xl">
+        <i class="fa-solid fa-message"></i>
+      </button>
+      <button onclick="openApp('planet-app')" class="app-icon w-12 h-12 rounded-2xl bg-purple-500/30 border border-purple-400/40 flex items-center justify-center text-purple-300 text-xl">
+        <i class="fa-solid fa-shuttle-space"></i>
+      </button>
+      <button onclick="openApp('notes-app')" class="app-icon w-12 h-12 rounded-2xl bg-amber-500/30 border border-amber-400/40 flex items-center justify-center text-amber-300 text-xl">
+        <i class="fa-solid fa-pen-to-square"></i>
+      </button>
+      <button onclick="openApp('settings-app')" class="app-icon w-12 h-12 rounded-2xl bg-slate-500/30 border border-slate-400/40 flex items-center justify-center text-slate-300 text-xl">
+        <i class="fa-solid fa-sliders"></i>
+      </button>
+    </footer>
+  </div>
+
+  <!-- ==================== WINDOWS LAYER ==================== -->
+  <div id="window-container" class="fixed inset-0 pointer-events-none z-50 flex items-center justify-center p-3">
+
+    <!-- 1. SPACE NOTES APP WINDOW -->
+    <div id="notes-app" class="app-window draggable absolute w-11/12 max-w-sm h-[480px] rounded-3xl glass-panel flex flex-col overflow-hidden border-amber-500/30 shadow-2xl">
+      <!-- Titlebar Header -->
+      <div class="window-header flex items-center justify-between px-4 py-3 bg-amber-500/10 border-b border-white/10 cursor-grab active:cursor-grabbing">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-feather-pointed text-amber-400"></i>
+          <span class="text-xs font-bold tracking-wider uppercase text-amber-200">Space Notes</span>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="closeApp('notes-app')" class="w-6 h-6 rounded-full bg-red-500/30 border border-red-400/40 flex items-center justify-center text-red-300 text-xs active:scale-90">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+      <!-- Body -->
+      <div class="flex-1 p-4 flex flex-col gap-3 overflow-y-auto">
+        <input id="note-title" type="text" placeholder="Note Title..." class="bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-sm text-amber-100 placeholder-amber-200/40 focus:outline-none focus:border-amber-400">
+        <textarea id="note-body" placeholder="Log your cosmic thoughts here..." class="flex-1 bg-black/30 border border-white/10 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-400/40 focus:outline-none focus:border-amber-400 resize-none"></textarea>
+        <div class="flex justify-between items-center">
+          <span id="note-status" class="text-[10px] text-amber-300/70">Saved locally</span>
+          <button onclick="saveNote()" class="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl text-xs font-bold shadow-lg active:scale-95">Save Note</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. GALAXY AI CHAT WINDOW -->
+    <div id="chat-app" class="app-window draggable absolute w-11/12 max-w-sm h-[500px] rounded-3xl glass-panel flex flex-col overflow-hidden border-cyan-500/30 shadow-2xl">
+      <div class="window-header flex items-center justify-between px-4 py-3 bg-cyan-500/10 border-b border-white/10 cursor-grab active:cursor-grabbing">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-robot text-cyan-400"></i>
+          <span class="text-xs font-bold tracking-wider uppercase text-cyan-200">Galaxy AI</span>
+        </div>
+        <button onclick="closeApp('chat-app')" class="w-6 h-6 rounded-full bg-red-500/30 border border-red-400/40 flex items-center justify-center text-red-300 text-xs active:scale-90">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <!-- Chat Messages Area -->
+      <div id="chat-messages" class="flex-1 p-4 overflow-y-auto flex flex-col gap-3 text-xs">
+        <div class="self-start max-w-[85%] bg-cyan-950/60 border border-cyan-500/30 rounded-2xl p-3 text-cyan-100">
+          Hello Explorer! I am Galaxy AI. How can I assist your interstellar navigation today?
+        </div>
+      </div>
+      <!-- Chat Input -->
+      <div class="p-3 bg-black/40 border-t border-white/10 flex gap-2">
+        <input id="chat-input" type="text" placeholder="Ask Galaxy AI..." onkeydown="if(event.key==='Enter') sendChatMessage()" class="flex-1 bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400">
+        <button onclick="sendChatMessage()" class="w-9 h-9 bg-cyan-500 rounded-xl flex items-center justify-center text-white active:scale-95 shadow-md">
+          <i class="fa-solid fa-paper-plane text-xs"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. PLANET EXPLORER (3D THREE.JS) WINDOW -->
+    <div id="planet-app" class="app-window draggable absolute w-11/12 max-w-sm h-[480px] rounded-3xl glass-panel flex flex-col overflow-hidden border-purple-500/30 shadow-2xl">
+      <div class="window-header flex items-center justify-between px-4 py-3 bg-purple-500/10 border-b border-white/10 cursor-grab active:cursor-grabbing">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-globe text-purple-400"></i>
+          <span class="text-xs font-bold tracking-wider uppercase text-purple-200">Planet Explorer 3D</span>
+        </div>
+        <button onclick="closeApp('planet-app')" class="w-6 h-6 rounded-full bg-red-500/30 border border-red-400/40 flex items-center justify-center text-red-300 text-xs active:scale-90">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <!-- 3D Canvas viewport -->
+      <div class="flex-1 relative bg-black/60 overflow-hidden">
+        <canvas id="planet-canvas"></canvas>
+        <div class="absolute bottom-3 left-3 right-3 flex justify-between items-center bg-black/40 p-2 rounded-xl backdrop-blur-md border border-white/10">
+          <span id="planet-name" class="text-xs font-orbitron font-bold text-purple-300">AETHERIA IX</span>
+          <div class="flex gap-1">
+            <button onclick="changePlanet('aetheria')" class="px-2 py-1 bg-purple-600/40 border border-purple-400/30 rounded text-[10px]">Aetheria</button>
+            <button onclick="changePlanet('chronos')" class="px-2 py-1 bg-cyan-600/40 border border-cyan-400/30 rounded text-[10px]">Chronos</button>
+            <button onclick="changePlanet('pyro')" class="px-2 py-1 bg-rose-600/40 border border-rose-400/30 rounded text-[10px]">Pyro</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. COSMIC CAMERA WINDOW -->
+    <div id="camera-app" class="app-window draggable absolute w-11/12 max-w-sm h-[460px] rounded-3xl glass-panel flex flex-col overflow-hidden border-pink-500/30 shadow-2xl">
+      <div class="window-header flex items-center justify-between px-4 py-3 bg-pink-500/10 border-b border-white/10 cursor-grab active:cursor-grabbing">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-camera text-pink-400"></i>
+          <span class="text-xs font-bold tracking-wider uppercase text-pink-200">Cosmic Cam</span>
+        </div>
+        <button onclick="closeApp('camera-app')" class="w-6 h-6 rounded-full bg-red-500/30 border border-red-400/40 flex items-center justify-center text-red-300 text-xs active:scale-90">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="flex-1 bg-slate-950 relative flex flex-col items-center justify-center p-4">
+        <!-- Camera Viewfinder simulation -->
+        <div id="camera-viewfinder" class="w-full h-64 border-2 border-dashed border-pink-500/40 rounded-2xl flex flex-col items-center justify-center relative overflow-hidden bg-gradient-to-b from-purple-900/30 to-black">
+          <div class="absolute inset-4 border border-pink-400/20 rounded-xl pointer-events-none"></div>
+          <i class="fa-solid fa-shuttle-space text-4xl text-pink-400/60 animate-bounce"></i>
+          <span class="text-xs text-pink-200/80 mt-2 font-mono">SCANNING DEEP SPACE...</span>
+        </div>
+        <div class="mt-4 flex items-center justify-center gap-6">
+          <button onclick="takeSnapshot()" class="w-14 h-14 rounded-full border-4 border-white bg-pink-500/80 active:scale-90 flex items-center justify-center text-white shadow-lg shadow-pink-500/40">
+            <i class="fa-solid fa-aperture text-xl"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. SETTINGS WINDOW -->
+    <div id="settings-app" class="app-window draggable absolute w-11/12 max-w-sm h-[460px] rounded-3xl glass-panel flex flex-col overflow-hidden border-slate-500/30 shadow-2xl">
+      <div class="window-header flex items-center justify-between px-4 py-3 bg-slate-500/10 border-b border-white/10 cursor-grab active:cursor-grabbing">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-gear text-slate-300"></i>
+          <span class="text-xs font-bold tracking-wider uppercase text-slate-200">OS Settings</span>
+        </div>
+        <button onclick="closeApp('settings-app')" class="w-6 h-6 rounded-full bg-red-500/30 border border-red-400/40 flex items-center justify-center text-red-300 text-xs active:scale-90">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="flex-1 p-4 overflow-y-auto space-y-4 text-xs">
+        <div>
+          <label class="block text-slate-400 font-semibold mb-2">Cosmic Wallpapers</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button onclick="setTheme('deep')" class="h-14 rounded-xl bg-gradient-to-b from-indigo-900 to-black border border-indigo-400/40 flex items-center justify-center font-bold text-[10px]">Deep Space</button>
+            <button onclick="setTheme('nebula')" class="h-14 rounded-xl bg-gradient-to-b from-purple-900 to-pink-950 border border-purple-400/40 flex items-center justify-center font-bold text-[10px]">Nebula Glow</button>
+            <button onclick="setTheme('cyan')" class="h-14 rounded-xl bg-gradient-to-b from-teal-900 to-slate-950 border border-teal-400/40 flex items-center justify-center font-bold text-[10px]">Cyan Orbit</button>
+          </div>
+        </div>
+
+        <div class="p-3 bg-black/30 rounded-2xl border border-white/10 space-y-3">
+          <div class="flex justify-between items-center">
+            <span>Interface Sound Effects</span>
+            <input type="checkbox" checked class="accent-purple-500">
+          </div>
+          <div class="flex justify-between items-center">
+            <span>Glassmorphic Blur</span>
+            <input type="checkbox" checked class="accent-purple-500">
+          </div>
+        </div>
+
+        <div class="p-3 bg-black/30 rounded-2xl border border-white/10 text-center">
+          <p class="font-orbitron font-bold text-cyan-400">GALAXY OS v2.5</p>
+          <p class="text-[10px] text-slate-400 mt-1">Web Edition • Touch Enabled</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. MUSIC PLAYER APP -->
+    <div id="music-app" class="app-window draggable absolute w-11/12 max-w-sm h-[420px] rounded-3xl glass-panel flex flex-col overflow-hidden border-emerald-500/30 shadow-2xl">
+      <div class="window-header flex items-center justify-between px-4 py-3 bg-emerald-500/10 border-b border-white/10 cursor-grab active:cursor-grabbing">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-music text-emerald-400"></i>
+          <span class="text-xs font-bold tracking-wider uppercase text-emerald-200">Star Beats</span>
+        </div>
+        <button onclick="closeApp('music-app')" class="w-6 h-6 rounded-full bg-red-500/30 border border-red-400/40 flex items-center justify-center text-red-300 text-xs active:scale-90">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="flex-1 p-5 flex flex-col items-center justify-center text-center">
+        <div id="album-art" class="w-28 h-28 rounded-2xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-4xl shadow-xl shadow-emerald-500/20 mb-4 animate-pulse">
+          <i class="fa-solid fa-compact-disc text-white"></i>
+        </div>
+        <h3 class="font-orbitron font-bold text-sm text-emerald-300">Interstellar Waves</h3>
+        <p class="text-xs text-slate-400 mt-1">Cyber Synth Frequency</p>
+
+        <!-- Player controls -->
+        <div class="flex items-center gap-6 mt-6">
+          <button class="text-slate-300 text-lg active:scale-90"><i class="fa-solid fa-backward-step"></i></button>
+          <button id="play-btn" onclick="togglePlayMusic()" class="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center text-white text-lg shadow-lg active:scale-95">
+            <i class="fa-solid fa-play"></i>
+          </button>
+          <button class="text-slate-300 text-lg active:scale-90"><i class="fa-solid fa-forward-step"></i></button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- NOTIFICATION TOAST -->
+  <div id="toast" class="fixed top-12 left-1/2 -translate-x-1/2 z-50 glass-pill px-4 py-2 rounded-full text-xs font-medium text-cyan-200 border border-cyan-400/30 shadow-lg opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-2">
+    <i class="fa-solid fa-bell text-cyan-400"></i>
+    <span id="toast-msg">System Notification</span>
+  </div>
+
+  <!-- SYSTEM JAVASCRIPT LOGIC -->
+  <script>
+    // --- 1. SYSTEM CLOCK LOGIC ---
+    function updateClock() {
+      const now = new Date();
+      let hours = now.getHours();
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12 || 12;
+
+      document.getElementById('system-time').innerText = `${hours}:${minutes} ${ampm}`;
+      document.getElementById('widget-time').innerText = `${hours}:${minutes}:${seconds}`;
+
+      const options = { weekday: 'short', month: 'short', day: 'numeric' };
+      document.getElementById('widget-date').innerText = now.toLocaleDateString('en-US', options).toUpperCase();
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // --- 2. WINDOW MANAGEMENT & Z-INDEX ---
+    let highestZIndex = 100;
+
+    function openApp(appId) {
+      const app = document.getElementById(appId);
+      if (!app) return;
+
+      highestZIndex += 1;
+      app.style.zIndex = highestZIndex;
+
+      // Reset positioning center on first open if needed
+      if (!app.classList.contains('active')) {
+        app.style.top = '50%';
+        app.style.left = '50%';
+        app.style.transform = 'translate(-50%, -50%) scale(1)';
+      } else {
+        app.style.transform = 'scale(1)';
+      }
+
+      app.classList.add('active');
+      app.classList.remove('minimized');
+
+      showToast(`Launched ${appId.replace('-app', '').toUpperCase()}`);
+
+      // Initialize Three.js renderer if opening Planet Explorer
+      if (appId === 'planet-app' && !planetInitialized) {
+        initPlanet3D();
+      }
+    }
+
+    function closeApp(appId) {
+      const app = document.getElementById(appId);
+      if (app) {
+        app.classList.remove('active');
+      }
+    }
+
+    // --- 3. TOUCH & MOUSE DRAGGING SYSTEM ---
+    let activeDragWin = null;
+    let dragStartX = 0, dragStartY = 0;
+    let winStartX = 0, winStartY = 0;
+
+    document.querySelectorAll('.draggable').forEach(win => {
+      const header = win.querySelector('.window-header') || win;
+
+      const onStart = (e) => {
+        activeDragWin = win;
+        highestZIndex += 1;
+        win.style.zIndex = highestZIndex;
+
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        const rect = win.getBoundingClientRect();
+        dragStartX = clientX;
+        dragStartY = clientY;
+        winStartX = rect.left;
+        winStartY = rect.top;
+
+        // Clear translate styling when dragging starts to use precise absolute pixels
+        win.style.transform = 'none';
+        win.style.left = `${winStartX}px`;
+        win.style.top = `${winStartY}px`;
+      };
+
+      header.addEventListener('mousedown', onStart);
+      header.addEventListener('touchstart', onStart, { passive: true });
+    });
+
+    const onMove = (e) => {
+      if (!activeDragWin) return;
+
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+      const dx = clientX - dragStartX;
+      const dy = clientY - dragStartY;
+
+      activeDragWin.style.left = `${winStartX + dx}px`;
+      activeDragWin.style.top = `${winStartY + dy}px`;
+    };
+
+    const onEnd = () => {
+      activeDragWin = null;
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('touchmove', onMove, { passive: true });
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchend', onEnd);
+
+    // --- 4. SPACE NOTES APP ---
+    function saveNote() {
+      const title = document.getElementById('note-title').value;
+      const body = document.getElementById('note-body').value;
+
+      if (!title && !body) return;
+
+      localStorage.setItem('galaxy_note_title', title);
+      localStorage.setItem('galaxy_note_body', body);
+
+      const status = document.getElementById('note-status');
+      status.innerText = 'Saved to Cosmic Core!';
+      setTimeout(() => status.innerText = 'Saved locally', 2000);
+      showToast('Note saved successfully!');
+    }
+
+    // Load saved note
+    window.addEventListener('load', () => {
+      document.getElementById('note-title').value = localStorage.getItem('galaxy_note_title') || '';
+      document.getElementById('note-body').value = localStorage.getItem('galaxy_note_body') || '';
+    });
+
+    // --- 5. GALAXY AI CHAT APP ---
+    function sendChatMessage() {
+      const input = document.getElementById('chat-input');
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      const chatBox = document.getElementById('chat-messages');
+
+      // User Message Bubble
+      const userDiv = document.createElement('div');
+      userDiv.className = 'self-end max-w-[85%] bg-purple-600/60 border border-purple-400/30 rounded-2xl p-3 text-purple-100';
+      userDiv.innerText = msg;
+      chatBox.appendChild(userDiv);
+
+      input.value = '';
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      // Simulated AI Bot Response
+      setTimeout(() => {
+        const aiDiv = document.createElement('div');
+        aiDiv.className = 'self-start max-w-[85%] bg-cyan-950/60 border border-cyan-500/30 rounded-2xl p-3 text-cyan-100';
+        
+        const responses = [
+          "Fascinating query! Planetary scans indicate optimal star conditions.",
+          "Galaxy OS AI core is processing... All hyperdrive thrusters operational.",
+          "I've updated your star charts with that information.",
+          "Warning: Cosmic radiation levels normal. Proceed with exploration!"
+        ];
+        aiDiv.innerText = responses[Math.floor(Math.random() * responses.length)];
+        
+        chatBox.appendChild(aiDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }, 700);
+    }
+
+    // --- 6. PLANET EXPLORER 3D (THREE.JS) ---
+    let planetInitialized = false;
+    let scene, camera, renderer, planetMesh;
+
+    function initPlanet3D() {
+      planetInitialized = true;
+      const canvas = document.getElementById('planet-canvas');
+      const container = canvas.parentElement;
+
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+      camera.position.z = 3.5;
+
+      renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+
+      // Sphere Geometry for planet
+      const geometry = new THREE.SphereGeometry(1, 32, 32);
+      const material = new THREE.MeshPhongMaterial({
+        color: 0x8b5cf6,
+        wireframe: true,
+        emissive: 0x2e1065
+      });
+
+      planetMesh = new THREE.Mesh(geometry, material);
+      scene.add(planetMesh);
+
+      // Lighting
+      const light = new THREE.PointLight(0xffffff, 1.5, 100);
+      light.position.set(5, 5, 5);
+      scene.add(light);
+      scene.add(new THREE.AmbientLight(0x404040));
+
+      function animate() {
+        requestAnimationFrame(animate);
+        if (planetMesh) {
+          planetMesh.rotation.y += 0.008;
+          planetMesh.rotation.x += 0.003;
+        }
+        renderer.render(scene, camera);
+      }
+      animate();
+    }
+
+    function changePlanet(type) {
+      if (!planetMesh) return;
+      const nameElem = document.getElementById('planet-name');
+
+      if (type === 'aetheria') {
+        planetMesh.material.color.setHex(0x8b5cf6);
+        planetMesh.material.wireframe = true;
+        nameElem.innerText = 'AETHERIA IX';
+      } else if (type === 'chronos') {
+        planetMesh.material.color.setHex(0x06b6d4);
+        planetMesh.material.wireframe = false;
+        nameElem.innerText = 'CHRONOS PRIME';
+      } else if (type === 'pyro') {
+        planetMesh.material.color.setHex(0xf43f5e);
+        planetMesh.material.wireframe = true;
+        nameElem.innerText = 'PYRO VECTOR';
+      }
+    }
+
+    // --- 7. COSMIC CAMERA SIMULATION ---
+    function takeSnapshot() {
+      showToast('📸 Snapshot captured to Space Gallery!');
+      const vf = document.getElementById('camera-viewfinder');
+      vf.style.filter = 'brightness(2)';
+      setTimeout(() => vf.style.filter = 'none', 150);
+    }
+
+    // --- 8. MUSIC PLAYER CONTROL ---
+    let isPlaying = false;
+    function togglePlayMusic() {
+      isPlaying = !isPlaying;
+      const btn = document.getElementById('play-btn');
+      const art = document.getElementById('album-art');
+
+      if (isPlaying) {
+        btn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+        art.classList.add('animate-spin');
+        showToast('Playing: Interstellar Waves');
+      } else {
+        btn.innerHTML = '<i class="fa-solid fa-play"></i>';
+        art.classList.remove('animate-spin');
+      }
+    }
+
+    // --- 9. THEME / WALLPAPER SETTINGS ---
+    function setTheme(theme) {
+      const wp = document.getElementById('wallpaper');
+      if (theme === 'deep') {
+        wp.style.background = 'radial-gradient(ellipse at bottom, #1b143d 0%, #080711 100%)';
+      } else if (theme === 'nebula') {
+        wp.style.background = 'radial-gradient(ellipse at top, #4c1d95 0%, #050515 100%)';
+      } else if (theme === 'cyan') {
+        wp.style.background = 'radial-gradient(ellipse at center, #0f766e 0%, #022c22 50%, #000000 100%)';
+      }
+      showToast(`Wallpaper set to ${theme.toUpperCase()}`);
+    }
+
+    // --- 10. SYSTEM TOAST NOTIFICATION ---
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      const msgElem = document.getElementById('toast-msg');
+      msgElem.innerText = message;
+      toast.style.opacity = '1';
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+      }, 2200);
+    }
+  </script>
+</body>
+</html>
